@@ -1,5 +1,6 @@
 import pickle
 import pendulum
+import traceback
 from ...utils.console import HasColoredOutput
 from ...utils.time import parse_human_time
 import time
@@ -102,6 +103,11 @@ class DatabaseDriver(HasColoredOutput):
                         f"[{job['id']}][{pendulum.now(tz=self.options.get('tz', 'UTC')).to_datetime_string()}] Job Failed"
                     )
 
+                    # Capture the full traceback so the failure can be debugged,
+                    # not just the exception message.
+                    exception_trace = traceback.format_exc()
+                    self.danger(exception_trace)
+
                     job["attempts"] = int(job["attempts"])
 
                     if job["attempts"] + 1 < int(self.options.get("attempts", 1)):
@@ -125,18 +131,18 @@ class DatabaseDriver(HasColoredOutput):
                         )
 
                         if hasattr(obj, "failed"):
-                            getattr(obj, "failed")(unserialized, str(e))
+                            getattr(obj, "failed")(unserialized, exception_trace)
 
                         builder.where("id", job["id"]).table(
                             self.options.get("table")
                         ).delete()
                     elif self.options.get("failed_table"):
                         self.add_to_failed_queue_table(
-                            builder, job["name"], payload, str(e)
+                            builder, job["name"], payload, exception_trace
                         )
 
                         if hasattr(obj, "failed"):
-                            getattr(obj, "failed")(unserialized, str(e))
+                            getattr(obj, "failed")(unserialized, exception_trace)
 
                         builder.where("id", job["id"]).table(
                             self.options.get("table")

@@ -1,6 +1,7 @@
 import pickle
 import pendulum
 import inspect
+import traceback
 from urllib import parse
 
 from ...utils.console import HasColoredOutput
@@ -158,10 +159,18 @@ class AMQPDriver(HasColoredOutput):
                 f"[{method.delivery_tag}][{pendulum.now(tz=self.options.get('tz', 'UTC')).to_datetime_string()}] Job Failed"
             )
 
-            getattr(obj, "failed")(job, str(e))
+            # Capture the full traceback so the failure can be debugged,
+            # not just the exception message.
+            exception_trace = traceback.format_exc()
+            self.danger(exception_trace)
+
+            getattr(obj, "failed")(job, exception_trace)
 
             self.add_to_failed_queue_table(
-                self.application.make("builder").new(), str(job["obj"]), body, str(e)
+                self.application.make("builder").new(),
+                str(job["obj"]),
+                body,
+                exception_trace,
             )
 
         ch.basic_ack(delivery_tag=method.delivery_tag)

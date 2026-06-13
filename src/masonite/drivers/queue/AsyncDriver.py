@@ -1,5 +1,6 @@
 import inspect
 import os
+import traceback
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
 from ...exceptions import QueueException
@@ -43,8 +44,19 @@ class AsyncDriver:
 
         if is_blocking:
             for job in as_completed(ran.keys()):
-                if job.exception():
-                    ran[job].failed(ran[job], job.exception())
+                exception = job.exception()
+                if exception:
+                    # Format the full traceback so the failure can be debugged,
+                    # not just the exception message.
+                    exception_trace = "".join(
+                        traceback.format_exception(
+                            type(exception),
+                            exception,
+                            exception.__traceback__,
+                        )
+                    )
+                    print(exception_trace)
+                    ran[job].failed(ran[job], exception_trace)
                 print(f"Job Ran: {job}")
 
     def consume(self, **options):
